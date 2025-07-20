@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>지서우를 물리쳐라 - 완성 버전</title>
+  <style>
+    body { margin: 0; background: #000; overflow: hidden; font-family: monospace; color: white; }
+    canvas { display: block; margin: auto; background: #111; image-rendering: pixelated; }
+    #startBtn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 12px 24px;
+      background: lime;
+      color: black;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+<button id="startBtn">게임 시작</button>
+<canvas id="game" width="640" height="480" style="display: none;"></canvas>
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const startBtn = document.getElementById("startBtn");
+let gameStarted = false;
+
+let frame = 0;
+let player = { x: 300, y: 400, w: 20, h: 20, speed: 2.7075, hp: 5 };
+let bullets = [], enemies = [], enemyBullets = [], items = [];
+let score = 0, gameOver = false;
+let keys = {};
+let boss = null;
+
+function resetGame() {
+  player.hp = 5;
+  player.x = 300;
+  player.y = 400;
+  bullets = [];
+  enemies = [];
+  enemyBullets = [];
+  items = [];
+  boss = null;
+  score = 0;
+  gameOver = false;
+}
+
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
+
+function shootPlayer() {
+  if (frame % 10 === 0) {
+    bullets.push({ x: player.x + player.w/2 - 2, y: player.y, w: 4, h: 10, speed: 6 });
+  }
+}
+
+function updateBullets() {
+  bullets.forEach((b, i) => {
+    b.y -= b.speed;
+    ctx.fillStyle = "white";
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    if (b.y < 0) bullets.splice(i, 1);
+  });
+}
+
+function spawnEnemy() {
+  if (frame % 100 === 0) {
+    enemies.push({ x: Math.random() * (canvas.width - 20), y: -20, w: 20, h: 20, speed: 1 });
+  }
+}
+
+function updateEnemies() {
+  enemies.forEach((e, i) => {
+    e.y += e.speed;
+    ctx.fillStyle = "red";
+    ctx.fillRect(e.x, e.y, e.w, e.h);
+
+    if (frame % 100 === 0) {
+      enemyBullets.push({ x: e.x + e.w/2 - 2, y: e.y + e.h, w: 4, h: 10, speed: 3 });
+    }
+
+    bullets.forEach((b, j) => {
+      if (b.x < e.x + e.w && b.x + b.w > e.x && b.y < e.y + e.h && b.y + b.h > e.y) {
+        bullets.splice(j, 1);
+        enemies.splice(i, 1);
+        score++;
+      }
+    });
+  });
+}
+
+function updateEnemyBullets() {
+  enemyBullets.forEach((eb, i) => {
+    eb.y += eb.speed;
+    ctx.fillStyle = "orange";
+    ctx.fillRect(eb.x, eb.y, eb.w, eb.h);
+
+    if (eb.x < player.x + player.w && eb.x + eb.w > player.x && eb.y < player.y + player.h && eb.y + eb.h > player.y) {
+      player.hp--;
+      enemyBullets.splice(i, 1);
+      if (player.hp <= 0) gameOver = true;
+    }
+  });
+}
+
+function spawnItems() {
+  if (frame % 800 === 0) {
+    items.push({ x: Math.random() * 600, y: 0, w: 16, h: 16, speed: 2, type: "heal", color: "lime" });
+  }
+}
+
+function updateItems() {
+  items.forEach((it, i) => {
+    it.y += it.speed;
+    ctx.fillStyle = it.color;
+    ctx.fillRect(it.x, it.y, it.w, it.h);
+    if (it.x < player.x + player.w && it.x + it.w > player.x && it.y < player.y + player.h && it.y + it.h > player.y) {
+      if (it.type === "heal") player.hp = Math.min(player.hp + 1, 5);
+      items.splice(i, 1);
+    }
+  });
+}
+
+function spawnBoss() {
+  if (!boss && score >= 15) {
+    boss = { x: 260, y: 50, w: 120, h: 40, hp: 20 };
+  }
+}
+
+function updateBoss() {
+  if (!boss) return;
+  ctx.fillStyle = "darkred";
+  ctx.fillRect(boss.x, boss.y, boss.w, boss.h);
+  ctx.fillStyle = "white";
+  ctx.fillText("BOSS HP: " + boss.hp, boss.x + 10, boss.y - 10);
+  bullets.forEach((b, i) => {
+    if (b.x < boss.x + boss.w && b.x + b.w > boss.x && b.y < boss.y + boss.h && b.y + b.h > boss.y) {
+      bullets.splice(i, 1);
+      boss.hp--;
+      if (boss.hp <= 0) {
+        boss = null;
+        score += 10;
+      }
+    }
+  });
+}
+
+function drawPlayer() {
+  ctx.fillStyle = 'lime';
+  ctx.beginPath();
+  ctx.moveTo(player.x + player.w / 2, player.y);
+  ctx.lineTo(player.x, player.y + player.h);
+  ctx.lineTo(player.x + player.w, player.y + player.h);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawUI() {
+  ctx.fillStyle = "white";
+  ctx.font = "16px monospace";
+  ctx.fillText("Score: " + score, 10, 20);
+  ctx.fillText("HP: " + player.hp, 10, 40);
+}
+
+function loop() {
+  if (gameOver) {
+    ctx.fillStyle = "white";
+    ctx.font = "20px monospace";
+    ctx.fillText("Game Over - 새로고침(F5)으로 재시작", 150, 240);
+    return;
+  }
+  frame++;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (keys['ArrowLeft']) player.x -= player.speed;
+  if (keys['ArrowRight']) player.x += player.speed;
+  if (keys['ArrowUp']) player.y -= player.speed;
+  if (keys['ArrowDown']) player.y += player.speed;
+  player.x = Math.max(0, Math.min(canvas.width - player.w, player.x));
+  player.y = Math.max(0, Math.min(canvas.height - player.h, player.y));
+
+  shootPlayer();
+  drawPlayer();
+  updateBullets();
+  spawnEnemy();
+  updateEnemies();
+  updateEnemyBullets();
+  spawnItems();
+  updateItems();
+  spawnBoss();
+  updateBoss();
+  drawUI();
+
+  requestAnimationFrame(loop);
+}
+
+startBtn.addEventListener("click", () => {
+  startBtn.style.display = "none";
+  canvas.style.display = "block";
+  gameStarted = true;
+  resetGame();
+  loop();
+});
+</script>
+</body>
+</html>
